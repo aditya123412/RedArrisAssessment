@@ -2,18 +2,32 @@
 {
     public class AlphaSummary
     {
+        private DateTime _startDate;
+        private DateTime _endDate;
         public string Symbol { get; set; }
         public string BenchMark { get; set; }
-        public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
+        public string StartDate
+        {
+            get
+            {
+                return _startDate.ToString("yyyy-MM-dd");
+            }
+        }
+        public string EndDate
+        {
+            get
+            {
+                return _endDate.ToString("yyyy-MM-dd");
+            }
+        }
         public List<AlphaRecord> AlphaRecords { get; set; }
 
         public AlphaSummary(string symbol, string benchmark, DateTime startDate, DateTime endDate)
         {
             Symbol = symbol;
             BenchMark = benchmark;
-            StartDate = startDate;
-            EndDate = endDate;
+            _startDate = startDate;
+            _endDate = endDate;
             AlphaRecords = new List<AlphaRecord>();
         }
     }

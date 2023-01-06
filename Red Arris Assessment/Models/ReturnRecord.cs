@@ -2,12 +2,19 @@
 {
     public class ReturnRecord
     {
-        public DateTime Date { get; set; }
+        private DateTime _date;
+        public string Date
+        {
+            get
+            {
+                return _date.ToString("yyyy-MM-dd");
+            }
+        }
         public double ReturnAbsolute { get; set; }
         public double ReturnPercentage { get; set; }
         public ReturnRecord(DateTime date, double returnAbsolute, double returnPercentage)
         {
-            Date = date;
+            _date = date;
             ReturnAbsolute = returnAbsolute;
             ReturnPercentage = returnPercentage;
         }

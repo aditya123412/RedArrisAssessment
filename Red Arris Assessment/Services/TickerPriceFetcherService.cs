@@ -11,19 +11,19 @@ namespace Red_Arris_Assessment.Services
         private readonly string baseUrl;
         private readonly string token;
         private readonly int maxDaysRange;
+        HttpClient _client;
         public TickerPriceFetcherService(string baseUrl, string token, Settings settings)
         {
             this.baseUrl = baseUrl;
             this.token = token;
             this.maxDaysRange = settings.MaxDaysRange;
+            this._client = new HttpClient();
         }
         public async Task<ReturnSummary> GetReturn(string symbol, DateTime startDate, DateTime endDate)
         {
             var (normalizedStartDate, NormalizedEndDate) = CheckDateRange(startDate, endDate);
 
-            // We pull range of data from a day before the start of the range to calculate the return
-            // There is an edge case that this fails for that when the previous day falls on a market holiday and no ticker data exists for that day
-            var tickers = await GetTickerPriceRecordClosedAsync(symbol, normalizedStartDate.AddDays(-1), NormalizedEndDate);
+            var tickers = await GetTickerPriceRecordsWithOnePreviousRecordAsync(symbol, normalizedStartDate, NormalizedEndDate);
             var result = new ReturnSummary(symbol, normalizedStartDate, NormalizedEndDate);
 
             //Since our range starts a day earlier than the requested range, start from the second item in the range
@@ -40,10 +40,8 @@ namespace Red_Arris_Assessment.Services
             var (normalizedStartDate, NormalizedEndDate) = CheckDateRange(startDate, endDate);
             var result = new AlphaSummary(symbol, benchMarkSymbol, normalizedStartDate, NormalizedEndDate);
 
-            // We pull range of data from a day before the start of the range to calculate the alpha
-            // There is an edge case that this fails for that when the previous day falls on a market holiday and no ticker data exists for that day
-            var tickers = await GetTickerPriceRecordClosedAsync(symbol, normalizedStartDate.AddDays(-1), NormalizedEndDate);
-            var benchMarks = await GetTickerPriceRecordClosedAsync(benchMarkSymbol, normalizedStartDate.AddDays(-1), NormalizedEndDate);
+            var tickers = await GetTickerPriceRecordsWithOnePreviousRecordAsync(symbol, normalizedStartDate, NormalizedEndDate);
+            var benchMarks = await GetTickerPriceRecordsWithOnePreviousRecordAsync(benchMarkSymbol, normalizedStartDate, NormalizedEndDate);
 
             // Check for some edge cases, although I don't expect encountering this
             if (tickers.Count != benchMarks.Count)
@@ -65,32 +63,42 @@ namespace Red_Arris_Assessment.Services
             return result;
         }
 
-        private async Task<List<TickerPriceRecord>> GetTickerPriceRecordClosedAsync(string symbol, DateTime startDate, DateTime endDate)
+
+        // We pull range of data from a day before the start of the range to calculate the alpha
+        // There is an edge case when the previous day falls on a market
+        // holiday and no ticker data exists for that day and the range still starts from the current day,
+        // so we pull in a slightly longer range and pick the newest record thats only older than the start date.
+        private async Task<List<TickerPriceRecord>> GetTickerPriceRecordsWithOnePreviousRecordAsync(string symbol, DateTime startDate, DateTime endDate)
         {
             List<TickerPriceRecord> tickerPriceRecords = new List<TickerPriceRecord>();
 
-            //https://cloud.iexapis.com/v1/stock/aapl/chart/6m?token=pk_035d50c28f334229a87bbc91c2c5374b&chartLast=299&chartByDay=true&chartCloseOnly=true&range=2020
             if (startDate.Year == endDate.Year)
             {
                 tickerPriceRecords = await GetTickerPriceForYear(symbol, startDate.Year);
             }
             else
             {
+                // Because I have selected 365 days as the max range, the range would span across a maximum of 2 years
                 tickerPriceRecords = await GetTickerPriceForYear(symbol, startDate.Year);
                 tickerPriceRecords.AddRange(await GetTickerPriceForYear(symbol, endDate.Year));
             }
-            return tickerPriceRecords.Where(x => x.Date >= startDate && x.Date <= endDate).ToList();
+
+            var prevRecord = await GetPreviousDayRecord(symbol,startDate);
+            List<TickerPriceRecord> results = new List<TickerPriceRecord>();
+            results.Add(prevRecord);
+            results.AddRange(tickerPriceRecords.Where(x => x.Date >= startDate && x.Date <= endDate));
+            return results;
         }
         private async Task<List<TickerPriceRecord>> GetTickerPriceForYear(string symbol, int forYear)
         {
-            string uri = $"{baseUrl}/stock/{symbol}/chart/1y?token={token}&chartLast=365&chartByDay=true&range={forYear}";
-            var client = new HttpClient();
+            string uri = $"{baseUrl}/stock/{symbol}/chart/1y?token={token}&chartByDay=true&range={forYear}";
+
 
             List<TickerPriceRecord> tickerPriceRecords = new List<TickerPriceRecord>();
             string result = "";
             try
             {
-                using (var response = await client.GetAsync(uri))
+                using (var response = await _client.GetAsync(uri))
                 using (Stream stream = response.Content.ReadAsStream())
                 using (StreamReader reader = new StreamReader(stream))
                 {
@@ -103,7 +111,7 @@ namespace Red_Arris_Assessment.Services
                 //This error just comes as a string, not as a valid json or empty array.
                 if (result.Equals("Unknown symbol"))
                 {
-                    throw new Exception($"The supplied symbol [{symbol}] is not a recognized symbol.");
+                    throw new Exception($"The supplied symbol [{symbol}] is not a recognized symbol.", e);
                 }
                 throw;
             }
@@ -150,6 +158,43 @@ namespace Red_Arris_Assessment.Services
             }
             //Everyting seems up to scratch, return the dates as is
             return (normalizedStartDate, normalizedEndDate);
+        }
+
+        private async Task<TickerPriceRecord> GetPreviousDayRecord(string symbol, DateTime date)
+        {
+            bool recordFound = false;
+            DateTime _date = date;
+
+            try
+            {
+                // Brute forcing through this as querying for just the symbol name
+                // will default to 2023-01-01 as the start date, which means the previous date falls
+                // on previous year's 2022-12-31, which for argument is not a trading day, so we step back
+                // by one more day to fetch 2022-12-30 record for it. So not fetching by a range but
+                // going back day-by-day
+                while (!recordFound)
+                {
+                    _date = _date.AddDays(-1);
+                    var uri = $"{baseUrl}/stock/{symbol}/chart/date/{_date.ToString("yyyyMMdd")}?token={token}&chartByDay=true";
+
+                    using (var response = await _client.GetAsync(uri))
+                    using (Stream stream = response.Content.ReadAsStream())
+                    using (StreamReader reader = new StreamReader(stream))
+                    {
+                        var result = await reader.ReadToEndAsync();
+                        var values = JsonSerializer.Deserialize<List<TickerPriceRecord>>(result);
+                        if (values.Count > 0)
+                        {
+                            return values[0];
+                        }
+                    }
+                }
+                return null;    //We shouldn't end up here
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
     }
 }

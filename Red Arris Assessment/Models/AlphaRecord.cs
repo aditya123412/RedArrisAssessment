@@ -2,11 +2,18 @@
 {
     public class AlphaRecord
     {
-        public DateTime Date { get; set; }
-        public double AlphaPercentage { get; set; }
-        public AlphaRecord(DateTime date, double alphaPercentage)
+        private DateTime _date;
+        public string Date
         {
-            Date = date;
+            get
+            {
+                return _date.ToString("yyyy-MM-dd");
+            }
+        }
+        public double AlphaPercentage { get; set; }
+        public AlphaRecord(DateTime date,  double alphaPercentage)
+        {
+            _date = date;
             AlphaPercentage = alphaPercentage;
         }
     }
