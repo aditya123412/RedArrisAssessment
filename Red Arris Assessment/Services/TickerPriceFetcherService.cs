@@ -30,7 +30,7 @@ namespace Red_Arris_Assessment.Services
             for (int i = 1; i < tickers.Count; i++)
             {
                 var dayReturn = tickers[i].close - tickers[i - 1].close;
-                result.ReturnRecords.Add(new ReturnRecord(tickers[i].Date, dayReturn, dayReturn / tickers[i].open));
+                result.ReturnRecords.Add(new ReturnRecord(tickers[i].Date, dayReturn, 100 * dayReturn / tickers[i].open));
             }
             return result;
         }
@@ -56,9 +56,9 @@ namespace Red_Arris_Assessment.Services
             //Since our range starts a day earlier than the requested range, start from the second item in the range
             for (int i = 1; i < tickers.Count; i++)
             {
-                var percentageDayReturn = (tickers[i].close - tickers[i - 1].close) / tickers[i].open;
-                var percentageBenchmarkReturn = (benchMarks[i].close - benchMarks[i - 1].close) / benchMarks[i].open;
-                result.AlphaRecords.Add(new AlphaRecord(tickers[i].Date, percentageDayReturn - percentageBenchmarkReturn));
+                var percentageDayReturn = 100 * (tickers[i].close - tickers[i - 1].close) / tickers[i].open;
+                var percentageBenchmarkReturn = 100 * (benchMarks[i].close - benchMarks[i - 1].close) / benchMarks[i].open;
+                result.AlphaRecords.Add(new AlphaRecord(tickers[i].Date, (percentageDayReturn - percentageBenchmarkReturn)));
             }
             return result;
         }
@@ -83,7 +83,7 @@ namespace Red_Arris_Assessment.Services
                 tickerPriceRecords.AddRange(await GetTickerPriceForYear(symbol, endDate.Year));
             }
 
-            var prevRecord = await GetPreviousDayRecord(symbol,startDate);
+            var prevRecord = await GetPreviousDayRecord(symbol, startDate);
             List<TickerPriceRecord> results = new List<TickerPriceRecord>();
             results.Add(prevRecord);
             results.AddRange(tickerPriceRecords.Where(x => x.Date >= startDate && x.Date <= endDate));

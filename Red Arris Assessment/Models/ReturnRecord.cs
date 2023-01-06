@@ -3,6 +3,7 @@
     public class ReturnRecord
     {
         private DateTime _date;
+        private double _returnPercentage;
         public string Date
         {
             get
@@ -11,12 +12,18 @@
             }
         }
         public double ReturnAbsolute { get; set; }
-        public double ReturnPercentage { get; set; }
+        public string ReturnPercentage
+        {
+            get
+            {
+                return $"{_returnPercentage:0.##}%";
+            }
+        }
         public ReturnRecord(DateTime date, double returnAbsolute, double returnPercentage)
         {
             _date = date;
             ReturnAbsolute = returnAbsolute;
-            ReturnPercentage = returnPercentage;
+            _returnPercentage = returnPercentage;
         }
     }
 }

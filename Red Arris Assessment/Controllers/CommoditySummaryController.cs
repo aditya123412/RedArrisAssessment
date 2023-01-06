@@ -21,8 +21,8 @@ namespace Red_Arris_Assessment.Controllers
             return await _tickerPriceFetcher.GetReturn(symbol, startDate, endDate);
         }
 
-        [HttpGet("~/api/GetAlpha/{symbol}")]
-        public async Task<AlphaSummary> GetAlpha(string symbol, [FromQuery] string benchMark, [FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+        [HttpGet("~/api/GetAlpha/{symbol}/{benchMark}")]
+        public async Task<AlphaSummary> GetAlpha(string symbol, string benchMark, [FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
         {
             return await _tickerPriceFetcher.GetAlpha(symbol, benchMark, startDate, endDate);
         }
